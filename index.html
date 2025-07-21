@@ -37,7 +37,7 @@
         const post = await res.json();
 
         /* 產生卡片 */
-        const rawText = post.content.replace(/\\n/g, '/'); // 將 \n 替換成 /
+        const rawText = post.content.replace(/\\n/g, ' / '); // 將 \n 替換成 /
         const shortContent = rawText.length > 200
          ? rawText.slice(0, 200) + '…'
          : rawText;
