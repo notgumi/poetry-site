@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>詩文頁面</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800 p-6 font-sans">
+  <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-xl p-6">
+    <h1 id="poem-title" class="text-2xl font-bold mb-2"></h1>
+    <p id="poem-meta" class="text-sm text-gray-500 mb-4"></p>
+    <pre id="poem-content" class="whitespace-pre-wrap text-gray-700 leading-relaxed"></pre>
+    <div class="mt-6">
+      <a href="index.html" class="text-blue-600 hover:underline">← 返回首頁</a>
+    </div>
+  </div>
+
+  <script>
+    const base = location.pathname.replace(/\/[^/]*$/, ''); // base 路徑，確保 fetch 正常
+    const urlParams = new URLSearchParams(location.search);
+    const slug = urlParams.get('slug');
+
+    fetch(`${base}/data/posts/${slug}.json`)
+      .then(res => res.json())
+      .then(post => {
+        document.getElementById('poem-title').textContent = post.title;
+        document.getElementById('poem-meta').textContent = `作者：${post.author}　日期：${post.date}`;
+        document.getElementById('poem-content').textContent = post.content;
+      })
+      .catch(err => {
+        document.body.innerHTML = '<p class="text-red-500 text-center mt-10">⚠️ 無法載入詩文內容，請確認網址或檔案是否正確。</p>';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
