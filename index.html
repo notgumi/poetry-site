@@ -19,7 +19,8 @@
 
   <script>
     // 讀取詩作清單
-    fetch('data/index.json')
+    const base = location.pathname.replace(/\/[^/]*$/, ''); // e.g. /poetry-site
+    fetch(`${base}/data/index.json`)
       .then(res => res.json())
       .then(postList => {
         // 時間由新到舊排序
@@ -28,7 +29,7 @@
         // 每篇文章卡片渲染
         const container = document.getElementById('poem-list');
         postList.forEach(async slug => {
-          const res = await fetch(`data/posts/${slug}.json`);
+          const res = await fetch(`${base}/data/posts/${slug}.json`);
           const post = await res.json();
 
           const shortContent = post.content
