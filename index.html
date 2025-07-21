@@ -18,38 +18,42 @@
   <main id="poem-list" class="grid gap-6"></main>
 
   <script>
-    // 讀取詩作清單
-    const base = location.pathname.replace(/\/[^/]*$/, ''); // e.g. /poetry-site
-    fetch(`${base}/data/index.json`)
-      .then(res => res.json())
-      .then(postList => {
-        // 時間由新到舊排序
-        postList.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const base = location.pathname.replace(/\/[^/]*$/, '');
 
-        // 每篇文章卡片渲染
-        const container = document.getElementById('poem-list');
-        postList.forEach(async slug => {
-          const res = await fetch(`${base}/data/posts/${slug}.json`);
-          const post = await res.json();
+  console.log('base path is:', base);
+  fetch(`${base}/data/index.json`)
+    .then(res => {
+      console.log('index.json fetch status:', res.status);
+      return res.json();
+    })
+    .then(postList => {
+      postList.sort((a, b) => new Date(b.date) - new Date(a.date));
+      const container = document.getElementById('poem-list');
 
-          const shortContent = post.content
-            .replace(/\n/g, '/')  // 換行用 / 表示
-            .slice(0, 200) + (post.content.length > 200 ? '…' : '');
+      postList.forEach(async slug => {
+        console.log('loading post slug:', slug);
+        const res = await fetch(`${base}/data/posts/${slug}`);
+        console.log('fetch', slug, 'status', res.status);
+        const post = await res.json();
 
-          const card = document.createElement('div');
-          card.className = 'bg-white p-6 rounded-xl shadow hover:shadow-lg transition';
-          card.innerHTML = `
-            <h2 class="text-xl font-semibold mb-1">${post.title}</h2>
-            <p class="text-sm text-blue-600 mb-3 cursor-pointer hover:underline" onclick="location.href='search.html?author=${encodeURIComponent(post.author)}'">作者：${post.author}</p>
-            <p class="text-gray-700 mb-4 text-sm">${shortContent}</p>
-            <div class="flex items-center justify-between text-sm text-gray-500">
-              <span>${post.date}</span>
-              <a href="poem.html?slug=${encodeURIComponent(slug)}" class="text-blue-500 hover:underline">閱讀更多</a>
-            </div>
-          `;
-          container.appendChild(card);
-        });
+        /* 產生卡片 */
+        const shortContent = post.content.replace(/\n/g, '/').slice(0, 200) + (post.content.length > 200 ? '…' : '');
+
+        const card = document.createElement('div');
+        card.className = 'bg-white p-6 rounded-xl shadow hover:shadow-lg transition';
+        card.innerHTML = `
+          <h2 class="text-xl font-semibold mb-1">${post.title}</h2>
+          <p class="text-sm text-blue-600 mb-3 cursor-pointer hover:underline" onclick="location.href='search.html?author=${encodeURIComponent(post.author)}'">作者：${post.author}</p>
+          <p class="text-gray-700 mb-4 text-sm">${shortContent}</p>
+          <div class="flex items-center justify-between text-sm text-gray-500">
+            <span>${post.date}</span>
+            <a href="poem.html?slug=${encodeURIComponent(slug)}" class="text-blue-500 hover:underline">閱讀更多</a>
+          </div>
+        `;
+        container.appendChild(card);
       });
+    })
+    .catch(e => console.error('fetch error:', e));
   </script>
 </body>
 </html>
