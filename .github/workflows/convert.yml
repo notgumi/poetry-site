@@ -22,12 +22,14 @@ jobs:
           node-version: '18'
 
       - name: Get list of changed .txt files
-        id: changes
+        id: detect
         run: |
           echo "Getting changed .txt files..."
-          git diff --name-only ${{ github.event.before }} ${{ github.sha }} > changed.txt
+          git fetch --prune --unshallow
+          git diff --name-only origin/${{ github.ref_name }} HEAD > changed.txt
           grep '^raw_poems/.*\.txt$' changed.txt || true
           echo "FILES=$(grep '^raw_poems/.*\.txt$' changed.txt | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
 
       - name: Convert changed poems
         run: |
