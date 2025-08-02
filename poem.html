@@ -1,48 +1,92 @@
-<!-- poem.html -->
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>詩文詳頁</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>詩文頁面</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: "Noto Sans TC", sans-serif;
+      line-height: 1.6;
+      padding: 2rem;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      padding: 2rem;
+      background-color: #111;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    a {
+      color: #ffcc00;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    pre#content {
+      margin-top: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 1rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    strong {
+      color: #ccc;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <a href="index.html">← 回首頁</a>
     <h1 id="title"></h1>
     <p><strong>作者：</strong><span id="author"></span></p>
-    <p><strong>收錄日期：</strong><span id="date"></span></p>
-     <p><pre id="content" style="white-space: pre-wrap;"></pre> <p>
+    <p><strong>創作日期：</strong><span id="date"></span></p>
+    <pre id="content"></pre>
     <p><strong>備註：</strong><span id="notes"></span></p>
     <p><strong>標籤：</strong><span id="tags"></span></p>
   </div>
 
   <script>
-  // 從 URL 取得 query 參數
-  const params = new URLSearchParams(window.location.search);
-  const slug = params.get('slug'); // 例如 slug=半首詩_宇向.json
-  const file = `data/posts/${slug}`;
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("slug");
 
-  fetch(file)
-    .then(res => {
-      if (!res.ok) {
-        throw new Error("載入失敗：" + res.status);
-      }
-      return res.json();
-    })
-    .then(poem => {
-      document.getElementById("title").textContent = poem.title;
-      document.getElementById("author").textContent = poem.author;
-      document.getElementById("date").textContent = poem.date;
-      document.getElementById("content").textContent = poem.content.replace(/\\n/g, "\n");
-      document.getElementById("notes").textContent = poem.notes || "(無)";
-      document.getElementById("tags").textContent = (poem.tags || []).join(", ");
-    })
-    .catch(err => {
-      document.body.innerHTML = "<p>無法載入詩作內容。</p>";
-      console.error(err);
-    });
-</script>
-
+    if (!slug) {
+      document.getElementById("content").textContent = "未指定詩作。";
+    } else {
+      fetch(`data/posts/${slug}`)
+        .then((response) => {
+          if (!response.ok) throw new Error("無法載入詩作內容");
+          return response.json();
+        })
+        .then((data) => {
+          document.getElementById("title").textContent = data.title;
+          document.getElementById("author").textContent = data.author;
+          document.getElementById("date").textContent = data.date;
+          document.getElementById("content").textContent = data.content.replace(/\\n/g, "\n");
+          document.getElementById("notes").textContent = data.notes || "無";
+          document.getElementById("tags").textContent = data.tags?.join("、") || "無";
+        })
+        .catch((error) => {
+          document.getElementById("content").textContent = error.message;
+        });
+    }
+  </script>
 </body>
 </html>
