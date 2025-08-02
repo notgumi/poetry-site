@@ -2,26 +2,34 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// 路徑設定
 const inputDir = path.join(__dirname, 'raw_poems');
 const outputDir = path.join(__dirname, 'data/posts');
 const indexPath = path.join(__dirname, 'data/index.json');
 
-// 取得這次 Git 變動的所有 .txt 詩作檔案
+// 嘗試找出變更的 .txt 檔案
 let changedFiles = [];
+
 try {
-  const stdout = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' });
+  // 嘗試用 HEAD~1 比對差異
+  const stdout = execSync('git diff --name-only HEAD~1', { encoding: 'utf-8' });
   changedFiles = stdout
     .split('\n')
     .filter(f => f.startsWith('raw_poems/') && f.endsWith('.txt'))
-    .map(f => path.basename(f)); // 取得檔名部分
+    .map(f => path.basename(f));
 } catch (err) {
-  console.error('❌ 無法讀取 git 差異紀錄：', err.message);
-  process.exit(1);
+  // fallback: 選出所有 .txt 檔案中尚未轉成 .json 的
+  console.warn('⚠️ 無法使用 git diff --name-only HEAD~1，將改為檢查未轉換的 .txt 檔案');
+
+  const allTxts = fs.readdirSync(inputDir).filter(f => f.endsWith('.txt'));
+
+  const existingJsons = fs.readdirSync(outputDir).map(f => f.replace('.json', '.txt'));
+
+  changedFiles = allTxts.filter(f => !existingJsons.includes(f));
 }
 
+// 沒有檔案要處理
 if (changedFiles.length === 0) {
-  console.log('🟡 沒有偵測到 .txt 詩作檔案的變動，結束執行');
+  console.log('🟡 沒有偵測到需要處理的 .txt 檔案，結束執行');
   process.exit(0);
 }
 
@@ -30,7 +38,7 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-// 更新 index 清單（舊的）
+// index.json 現有資料
 let indexList = [];
 if (fs.existsSync(indexPath)) {
   try {
@@ -40,7 +48,7 @@ if (fs.existsSync(indexPath)) {
   }
 }
 
-// 處理每一個修改過的檔案
+// 處理每一份詩作
 changedFiles.forEach((file) => {
   const inputPath = path.join(inputDir, file);
 
@@ -71,14 +79,14 @@ changedFiles.forEach((file) => {
   };
 
   fs.writeFileSync(outputPath, JSON.stringify(jsonData, null, 2), 'utf-8');
-  console.log(`✅ 已更新：${file} → ${outputFileName}`);
+  console.log(`✅ 已處理：${file} → ${outputFileName}`);
 
   if (!indexList.includes(outputFileName)) {
     indexList.push(outputFileName);
   }
 });
 
-// 排序後寫入 index.json
+// 寫入 index.json
 indexList.sort();
 fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), 'utf-8');
 console.log(`📄 已更新 index.json，共 ${indexList.length} 篇詩作`);
