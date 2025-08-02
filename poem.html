@@ -1,46 +1,39 @@
+<!-- poem.html -->
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>詩文頁面</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <title>詩文詳頁</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-50 text-gray-800 p-6 font-sans">
-  <div class="max-w-2xl mx-auto bg-white shadow-lg rounded-xl p-6">
-    <h1 id="poem-title" class="text-2xl font-bold mb-2"></h1>
-    <p id="poem-meta" class="text-sm text-gray-500 mb-4"></p>
-    <pre id="poem-content" class="whitespace-pre-wrap text-gray-700 leading-relaxed"></pre>
-    <div class="mt-6">
-      <a href="index.html" class="text-blue-600 hover:underline">← 返回首頁</a>
-    </div>
+<body>
+  <div class="container">
+    <a href="index.html">← 回首頁</a>
+    <h1 id="title"></h1>
+    <p><strong>作者：</strong><span id="author"></span></p>
+    <p><strong>創作日期：</strong><span id="date"></span></p>
+    <pre id="content" style="white-space: pre-wrap;"></pre>
+    <p><strong>備註：</strong><span id="notes"></span></p>
+    <p><strong>標籤：</strong><span id="tags"></span></p>
   </div>
 
   <script>
-    const urlParams = new URLSearchParams(location.search);
-    const title = urlParams.get("title");
-    const author = urlParams.get("author");
+    // 從 URL 取得 query 參數
+    const params = new URLSearchParams(window.location.search);
+    const file = params.get('file'); // 例如 file=data/posts/半首詩_宇向.json
 
-    if (!title || !author) {
-      document.body.innerHTML = '<p class="text-red-500 text-center mt-10">⚠️ 缺少詩名或作者參數。</p>';
-      throw new Error("缺少 title 或 author");
-    }
-
-    const fileName = `${title}_${author}.json`;
-    const filePath = `data/posts/${fileName}`;
-
-    fetch(filePath)
-      .then(res => {
-        if (!res.ok) throw new Error("檔案不存在");
-        return res.json();
-      })
-      .then(post => {
-        document.getElementById("poem-title").textContent = post.title;
-        document.getElementById("poem-meta").textContent = `作者：${post.author}　日期：${post.date}`;
-        document.getElementById("poem-content").textContent = post.content;
+    fetch(file)
+      .then(res => res.json())
+      .then(poem => {
+        document.getElementById("title").textContent = poem.title;
+        document.getElementById("author").textContent = poem.author;
+        document.getElementById("date").textContent = poem.date;
+        document.getElementById("content").textContent = poem.content.replace(/\\n/g, "\n");
+        document.getElementById("notes").textContent = poem.notes || "(無)";
+        document.getElementById("tags").textContent = (poem.tags || []).join(", ");
       })
       .catch(err => {
-        document.body.innerHTML = `<p class="text-red-500 text-center mt-10">⚠️ 無法載入詩文：${err.message}</p>`;
+        document.body.innerHTML = "<p>無法載入詩作內容。</p>";
         console.error(err);
       });
   </script>
