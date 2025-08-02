@@ -18,24 +18,31 @@
   </div>
 
   <script>
-    // 從 URL 取得 query 參數
-    const params = new URLSearchParams(window.location.search);
-    const file = params.get('file'); // 例如 file=data/posts/半首詩_宇向.json
+  // 從 URL 取得 query 參數
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get('slug'); // 例如 slug=半首詩_宇向.json
+  const file = `data/posts/${slug}`;
 
-    fetch(file)
-      .then(res => res.json())
-      .then(poem => {
-        document.getElementById("title").textContent = poem.title;
-        document.getElementById("author").textContent = poem.author;
-        document.getElementById("date").textContent = poem.date;
-        document.getElementById("content").textContent = poem.content.replace(/\\n/g, "\n");
-        document.getElementById("notes").textContent = poem.notes || "(無)";
-        document.getElementById("tags").textContent = (poem.tags || []).join(", ");
-      })
-      .catch(err => {
-        document.body.innerHTML = "<p>無法載入詩作內容。</p>";
-        console.error(err);
-      });
-  </script>
+  fetch(file)
+    .then(res => {
+      if (!res.ok) {
+        throw new Error("載入失敗：" + res.status);
+      }
+      return res.json();
+    })
+    .then(poem => {
+      document.getElementById("title").textContent = poem.title;
+      document.getElementById("author").textContent = poem.author;
+      document.getElementById("date").textContent = poem.date;
+      document.getElementById("content").textContent = poem.content.replace(/\\n/g, "\n");
+      document.getElementById("notes").textContent = poem.notes || "(無)";
+      document.getElementById("tags").textContent = (poem.tags || []).join(", ");
+    })
+    .catch(err => {
+      document.body.innerHTML = "<p>無法載入詩作內容。</p>";
+      console.error(err);
+    });
+</script>
+
 </body>
 </html>
