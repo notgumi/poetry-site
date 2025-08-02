@@ -13,11 +13,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Run convert.js for modified poems
+      - name: Get list of changed .txt files
+        id: changes
         run: |
-          node convert.js
+          git fetch origin main --depth=2
+          echo "FILES=$(git diff --name-only origin/main | grep '^raw_poems/.*\.txt$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Run convert.js on changed files
+        run: |
+          for file in ${{ steps.changes.outputs.FILES }}; do
+            echo "📄 Converting: $file"
+            node convert.js $file
+          done
