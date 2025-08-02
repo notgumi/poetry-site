@@ -9,9 +9,12 @@ on:
 jobs:
   convert:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 很重要，否則 git diff 無法比較前後版本
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -21,12 +24,14 @@ jobs:
       - name: Get list of changed .txt files
         id: changes
         run: |
-          git fetch origin main --depth=2
-          echo "FILES=$(git diff --name-only origin/main | grep '^raw_poems/.*\.txt$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          echo "Getting changed .txt files..."
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} > changed.txt
+          grep '^raw_poems/.*\.txt$' changed.txt || true
+          echo "FILES=$(grep '^raw_poems/.*\.txt$' changed.txt | tr '\n' ' ')" >> $GITHUB_OUTPUT
 
-      - name: Run convert.js on changed files
+      - name: Convert changed poems
         run: |
           for file in ${{ steps.changes.outputs.FILES }}; do
-            echo "📄 Converting: $file"
+            echo "Converting: $file"
             node convert.js $file
           done
