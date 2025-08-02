@@ -1,24 +1,28 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-// 目錄設定
+// 路徑設定
 const inputDir = path.join(__dirname, 'raw_poems');
 const outputDir = path.join(__dirname, 'data/posts');
 const indexPath = path.join(__dirname, 'data/index.json');
 
-// 取得 CLI 傳入參數（ex: node convert.js 黑洞_阿青.txt）
-const targetFile = process.argv[2];
-
-if (!targetFile) {
-  console.error('❌ 請指定要處理的 .txt 檔案名稱，例如：node convert.js 黑洞_阿青.txt');
+// 取得這次 Git 變動的所有 .txt 詩作檔案
+let changedFiles = [];
+try {
+  const stdout = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' });
+  changedFiles = stdout
+    .split('\n')
+    .filter(f => f.startsWith('raw_poems/') && f.endsWith('.txt'))
+    .map(f => path.basename(f)); // 取得檔名部分
+} catch (err) {
+  console.error('❌ 無法讀取 git 差異紀錄：', err.message);
   process.exit(1);
 }
 
-// 檢查目標檔案是否存在
-const inputPath = path.join(inputDir, targetFile);
-if (!fs.existsSync(inputPath)) {
-  console.error(`❌ 找不到檔案：${inputPath}`);
-  process.exit(1);
+if (changedFiles.length === 0) {
+  console.log('🟡 沒有偵測到 .txt 詩作檔案的變動，結束執行');
+  process.exit(0);
 }
 
 // 確保輸出資料夾存在
@@ -26,56 +30,55 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-// 擷取詩名與作者
-const [title, authorWithExt] = targetFile.split('_');
-const author = authorWithExt.replace('.txt', '');
-
-// 輸出 JSON 檔路徑
-const outputFile = path.join(outputDir, `${title}_${author}.json`);
-const modifiedDate = new Date().toISOString().split('T')[0];
-
-// 讀取 .txt 內容
-const raw = fs.readFileSync(inputPath, 'utf-8');
-
-// 讀取舊資料（若已存在）
-let oldData = {};
-if (fs.existsSync(outputFile)) {
-  try {
-    oldData = JSON.parse(fs.readFileSync(outputFile, 'utf-8'));
-  } catch {
-    console.warn(`⚠️ 無法解析 ${outputFile}，將建立新檔`);
-  }
-}
-
-// 建構 JSON 物件
-const jsonData = {
-  title,
-  author,
-  content: raw.trim().replace(/\r?\n/g, '\\n'),
-  notes: oldData.notes || '（請填寫補充說明）',
-  tags: oldData.tags || [],
-  date: modifiedDate
-};
-
-// 寫入 JSON 檔案
-fs.writeFileSync(outputFile, JSON.stringify(jsonData, null, 2), 'utf-8');
-console.log(`✅ 已轉換：${targetFile} → ${title}_${author}.json`);
-
-// 更新 index.json
+// 更新 index 清單（舊的）
 let indexList = [];
 if (fs.existsSync(indexPath)) {
   try {
     indexList = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
   } catch {
-    console.warn(`⚠️ index.json 無法解析，將重建`);
+    console.warn('⚠️ index.json 無法解析，將重建');
   }
 }
 
-// 檔名字串
-const outputFileName = `${title}_${author}.json`;
+// 處理每一個修改過的檔案
+changedFiles.forEach((file) => {
+  const inputPath = path.join(inputDir, file);
 
-// 更新索引清單（去重並排序）
-const updatedIndex = Array.from(new Set([outputFileName, ...indexList])).sort();
+  const [title, authorWithExt] = file.split('_');
+  const author = authorWithExt.replace('.txt', '');
+  const outputFileName = `${title}_${author}.json`;
+  const outputPath = path.join(outputDir, outputFileName);
+  const modifiedDate = new Date().toISOString().split('T')[0];
 
-fs.writeFileSync(indexPath, JSON.stringify(updatedIndex, null, 2), 'utf-8');
-console.log(`📄 已更新 index.json，共 ${updatedIndex.length} 篇詩作`);
+  const raw = fs.readFileSync(inputPath, 'utf-8');
+
+  let oldData = {};
+  if (fs.existsSync(outputPath)) {
+    try {
+      oldData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+    } catch {
+      console.warn(`⚠️ 無法解析 ${outputFileName}，將建立新檔`);
+    }
+  }
+
+  const jsonData = {
+    title,
+    author,
+    content: raw.trim().replace(/\r?\n/g, '\\n'),
+    notes: oldData.notes || '（請填寫補充說明）',
+    tags: oldData.tags || [],
+    date: modifiedDate
+  };
+
+  fs.writeFileSync(outputPath, JSON.stringify(jsonData, null, 2), 'utf-8');
+  console.log(`✅ 已更新：${file} → ${outputFileName}`);
+
+  if (!indexList.includes(outputFileName)) {
+    indexList.push(outputFileName);
+  }
+});
+
+// 排序後寫入 index.json
+indexList.sort();
+fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), 'utf-8');
+console.log(`📄 已更新 index.json，共 ${indexList.length} 篇詩作`);
