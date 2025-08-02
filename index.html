@@ -37,11 +37,11 @@
         const post = await res.json();
 
         /* 產生卡片 */
-        const rawText = post.content.replace(/\\n/g, '/'); // 將 \n 替換成/
+        const rawText = post.content.replace(/\\n/g, '/'); // 將 \n 替換成 /
         const shortContent = rawText.length > 200
-         ? rawText.slice(0, 200) + '…'
-         : rawText;
-
+          ? rawText.slice(0, 200) + '…'
+          : rawText;
+        
         const card = document.createElement('div');
         card.className = 'bg-white p-6 rounded-xl shadow hover:shadow-lg transition';
         card.innerHTML = `
@@ -50,7 +50,7 @@
           <p class="text-gray-700 mb-4 text-sm">${shortContent}</p>
           <div class="flex items-center justify-between text-sm text-gray-500">
             <span>${post.date}</span>
-            <a href="poem.html?slug=${encodeURIComponent(slug)}" class="text-blue-500 hover:underline">閱讀更多</a>
+            <button onclick="location.href='poem.html?slug=${encodeURIComponent(slug)}'" class="text-blue-500 hover:underline">閱讀更多</button>
           </div>
         `;
         container.appendChild(card);
