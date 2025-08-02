@@ -1,31 +1,23 @@
-name: Convert Poems
+name: Convert Poetry
 
 on:
   push:
     paths:
-      - 'raw_poems/*.txt'
+      - 'raw_poems/**/*.txt'
       - 'convert.js'
 
 jobs:
   convert:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
-      - name: Run convert.js
-        run: node convert.js
-
-      - name: Commit converted JSON
+      - name: Run convert.js for modified poems
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/posts/*.json data/index.json || true
-          git commit -m "🔄 Auto-converted poems" || echo "No changes to commit"
-          git push
+          node convert.js
