@@ -1,10 +1,12 @@
-name: Convert Poetry
+name: Convert Poems
 
 on:
   push:
     paths:
-      - 'raw_poems/**/*.txt'
-      - 'convert.js'
+      - 'raw_poems/*.txt'
+  pull_request:
+    paths:
+      - 'raw_poems/*.txt'
 
 jobs:
   convert:
@@ -12,28 +14,40 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 很重要，否則 git diff 無法比較前後版本
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: 18
 
-      - name: Get list of changed .txt files
-        id: detect
+      - name: Install dependencies (if any)
+        run: npm install || true
+
+      - name: Detect changed .txt files
+        id: changed
         run: |
-          echo "Getting changed .txt files..."
-          git fetch --prune --unshallow
-          git diff --name-only origin/${{ github.ref_name }} HEAD > changed.txt
-          grep '^raw_poems/.*\.txt$' changed.txt || true
-          echo "FILES=$(grep '^raw_poems/.*\.txt$' changed.txt | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          git fetch origin main
+          git diff --name-only origin/main...HEAD \
+            | grep '^raw_poems/.*\.txt$' \
+            | sed 's|raw_poems/||;s|\.txt$||' > changed.txt || true
 
+      - name: Show changed files
+        run: cat changed.txt || echo "沒有變更的詩作"
 
-      - name: Convert changed poems
+      - name: Run convert.js on changed poems
         run: |
-          for file in ${{ steps.changes.outputs.FILES }}; do
-            echo "Converting: $file"
-            node convert.js $file
-          done
+          if [ -s changed.txt ]; then
+            xargs -a changed.txt node convert.js
+          else
+            echo "沒有詩作變更，略過轉換"
+          fi
+
+      - name: Commit and push updated JSONs
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+
+          git add data/posts/*.json data/index.json
+          git diff --cached --quiet || git commit -m "🤖 更新詩作 JSON（自動轉換）"
+          git push
