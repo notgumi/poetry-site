@@ -1,10 +1,12 @@
-name: Convert poems
+name: Build poems
 
 on:
   push:
     paths:
       - 'raw_poems/**.txt'
+      - 'data/posts/**.json'
       - 'convert.js'
+      - 'update_index.js'
       - '.github/workflows/convert.yml'
   workflow_dispatch:
 
@@ -16,48 +18,45 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          # 需要拿到前一次提交，才抓得到差異檔
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        with: { node-version: '20' }
 
-      - name: Determine changed poem files
+      - name: Detect changed raw txt
         id: diff
         shell: bash
         run: |
-          # 找到比較基準（處理首次推送 / 手動觸發）
           BASE="${{ github.event.before }}"
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             BASE="$(git rev-parse HEAD~1 || echo "")"
           fi
-
           if [ -n "$BASE" ]; then
-            CHANGED=$(git diff --name-only "$BASE" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
+            TXT=$(git diff --name-only "$BASE" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
           else
-            # 只有一個提交可比時（例如只有 HEAD）
-            CHANGED=$(git show --name-only --pretty="" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
+            TXT=$(git show --name-only --pretty="" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
           fi
+          echo "txt=$TXT" >> $GITHUB_OUTPUT
+          echo "Changed txt:"
+          echo "$TXT"
 
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
-          echo "Changed files:"
-          echo "$CHANGED"
-
-      - name: Run converter
+      - name: Run convert.js
         run: |
-          if [ -n "${{ steps.diff.outputs.changed }}" ]; then
-            echo "Converting changed files only..."
-            node convert.js ${{ steps.diff.outputs.changed }}
+          if [ -n "${{ steps.diff.outputs.txt }}" ]; then
+            echo "Convert changed txt only..."
+            node convert.js ${{ steps.diff.outputs.txt }}
           else
-            echo "No changed .txt files. Running in 'add-new-only' mode..."
-            # 不傳參數 → convert.js 只會把 index.json 沒列到的「新詩」補進去
+            echo "No changed txt; convert.js will self-check by mtime."
             node convert.js
           fi
+
+      - name: Rebuild index (sorted by date desc)
+        run: node update_index.js
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update converted poems & index"
-          file_pattern: data/**
+          commit_message: "chore: update posts & index"
+          file_pattern: |
+            data/posts/**
+            data/index.json
