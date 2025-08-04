@@ -1,107 +1,129 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-// 資料夾與路徑
-const inputDir = path.join(__dirname, 'raw_poems');
-const outputDir = path.join(__dirname, 'data/posts');
-const indexPath = path.join(__dirname, 'data/index.json');
+const inputDir = path.join(__dirname, "raw_poems");
+const outputDir = path.join(__dirname, "data/posts");
+const indexPath = path.join(__dirname, "data/index.json");
 
 // 確保輸出資料夾存在
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-// 讀取現有 index.json 清單（若無則為空）
+// 載入現有 index.json（檔名清單）
 let indexList = [];
-try {
-  indexList = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-} catch {
-  console.log('⚠️ index.json 不存在，將建立新檔');
-  indexList = [];
+if (fs.existsSync(indexPath)) {
+  try {
+    indexList = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+  } catch (e) {
+    console.warn("⚠️ 無法解析 index.json，將從空白開始");
+    indexList = [];
+  }
 }
 
-// 把 indexList 轉成 Set 方便查詢
-const existingSet = new Set(indexList.map(name => name.replace('.json', '')));
+// 把檔名轉成 JSON 物件（讀取 data/posts 裡的 date）
+function loadIndexWithDates(list) {
+  return list.map((slug) => {
+    const jsonFile = path.join(outputDir, slug);
+    if (!fs.existsSync(jsonFile)) return null;
+    try {
+      const post = JSON.parse(fs.readFileSync(jsonFile, "utf-8"));
+      return { slug, date: post.date || "1970-01-01" };
+    } catch {
+      return { slug, date: "1970-01-01" };
+    }
+  }).filter(Boolean);
+}
 
-// 讀取 raw_poems 中所有 txt 檔案
-const allFiles = fs.readdirSync(inputDir).filter(file => file.endsWith('.txt'));
+// 解析 txt 檔案 → JSON 資料
+function parseTxtFile(txtPath, oldData = {}) {
+  const raw = fs.readFileSync(txtPath, "utf-8").trim();
+  const [title, authorWithExt] = path.basename(txtPath).split("_");
+  const author = authorWithExt.replace(".txt", "");
 
-// 處理新增檔案（index.json 尚未收錄的）
-const newFiles = allFiles.filter(file => {
-  const baseName = file.replace('.txt', '');
-  return !existingSet.has(baseName);
-});
+  return {
+    title,
+    author,
+    content: raw.replace(/\r?\n/g, "\\n"),
+    notes: oldData.notes || "（請填寫補充說明）",
+    tags: oldData.tags || [],
+    date: new Date().toISOString().split("T")[0],
+  };
+}
 
-// 處理已知被修改的檔案（透過命令列參數傳入）
-const changedFiles = process.argv.slice(2).map(f => f.replace('.txt', ''));
+// 寫入單篇 JSON
+function writePostJson(data) {
+  const slug = `${data.title}_${data.author}.json`;
+  const outPath = path.join(outputDir, slug);
+  fs.writeFileSync(outPath, JSON.stringify(data, null, 2), "utf-8");
+  console.log(`✅ 已更新：${slug}`);
+  return slug;
+}
 
-// 合併所有需要轉換的檔案（去重）
-const filesToConvert = Array.from(new Set([...newFiles, ...changedFiles]));
+// 主程式
+function main() {
+  const args = process.argv.slice(2); // 允許傳入特定 txt 檔
+  let toProcess = [];
 
-// 儲存新的 index 項目（含 date）
-let newIndexEntries = [];
+  if (args.length > 0) {
+    // 僅處理傳入的 txt
+    toProcess = args.filter(f => f.endsWith(".txt")).map(f => path.basename(f));
+  } else {
+    // 沒有參數 → 找出新詩（index.json 中沒有）
+    const allTxt = fs.readdirSync(inputDir).filter(f => f.endsWith(".txt"));
+    const existingTitles = indexList.map(f => f.replace(".json", ""));
+    toProcess = allTxt.filter(f => {
+      const base = f.replace(".txt", "");
+      return !existingTitles.includes(base);
+    });
+  }
 
-filesToConvert.forEach(name => {
-  const [title, author] = name.split('_');
-  const inputPath = path.join(inputDir, `${name}.txt`);
-  const outputPath = path.join(outputDir, `${name}.json`);
-
-  if (!fs.existsSync(inputPath)) {
-    console.warn(`🚫 找不到檔案：${inputPath}`);
+  if (toProcess.length === 0) {
+    console.log("沒有新或指定要處理的詩作。");
     return;
   }
 
-  const raw = fs.readFileSync(inputPath, 'utf-8');
-  const modifiedDate = new Date().toISOString().split('T')[0];
+  // 載入現有 index（含日期）
+  let indexWithDates = loadIndexWithDates(indexList);
 
-  let oldData = {};
-  if (fs.existsSync(outputPath)) {
-    try {
-      oldData = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
-    } catch (err) {
-      console.warn(`⚠️ 無法讀取 ${outputPath}，將重建新檔`);
+  // 處理每個 txt
+  for (const file of toProcess) {
+    const txtPath = path.join(inputDir, file);
+    if (!fs.existsSync(txtPath)) {
+      console.warn(`⚠️ 找不到檔案：${file}`);
+      continue;
+    }
+    const [title, authorWithExt] = file.split("_");
+    const author = authorWithExt.replace(".txt", "");
+    const slug = `${title}_${author}.json`;
+
+    let oldData = {};
+    const jsonPath = path.join(outputDir, slug);
+    if (fs.existsSync(jsonPath)) {
+      try {
+        oldData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+      } catch {}
+    }
+
+    const jsonData = parseTxtFile(txtPath, oldData);
+    const newSlug = writePostJson(jsonData);
+
+    // 更新 index 列表（若不存在則加上，存在則更新日期）
+    const existing = indexWithDates.find(i => i.slug === newSlug);
+    if (existing) {
+      existing.date = jsonData.date;
+    } else {
+      indexWithDates.push({ slug: newSlug, date: jsonData.date });
     }
   }
 
-  const jsonData = {
-    title,
-    author,
-    content: raw.trim().replace(/\r?\n/g, '\\n'),
-    notes: oldData.notes || "（請填寫補充說明）",
-    tags: oldData.tags || [],
-    date: modifiedDate
-  };
+  // 排序：新到舊
+  indexWithDates.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  fs.writeFileSync(outputPath, JSON.stringify(jsonData, null, 2), 'utf-8');
-  console.log(`✅ 已轉換：${name}.txt → ${name}.json`);
+  // 只存檔名
+  indexList = indexWithDates.map(i => i.slug);
+  fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), "utf-8");
+  console.log(`📚 已更新 index.json，共 ${indexList.length} 篇詩作。`);
+}
 
-  newIndexEntries.push({
-    filename: `${name}.json`,
-    date: modifiedDate
-  });
-});
-
-// 保留未改動的 index 項目
-const unchangedIndex = indexList
-  .map(name => {
-    const filepath = path.join(outputDir, name);
-    if (fs.existsSync(filepath)) {
-      try {
-        const data = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-        return { filename: name, date: data.date || "1970-01-01" };
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  })
-  .filter(Boolean);
-
-// 合併新的與舊的 index，並依時間由新到舊排序
-const fullIndex = [...newIndexEntries, ...unchangedIndex]
-  .filter((v, i, arr) => arr.findIndex(t => t.filename === v.filename) === i) // 去重
-  .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-// 寫入 index.json（只寫檔名清單）
-fs.writeFileSync(indexPath, JSON.stringify(fullIndex.map(i => i.filename), null, 2), 'utf-8');
-console.log(`📘 已更新 index.json，共 ${fullIndex.length} 篇`);
+main();
