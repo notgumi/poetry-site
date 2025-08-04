@@ -1,51 +1,63 @@
-name: Convert Poems
+name: Convert poems
 
 on:
   push:
     paths:
-      - 'raw_poems/*.txt'
-  pull_request:
-    paths:
-      - 'raw_poems/*.txt'
+      - 'raw_poems/**.txt'
+      - 'convert.js'
+      - '.github/workflows/convert.yml'
+  workflow_dispatch:
 
 jobs:
-  convert:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # ✅ 多抓一個 commit，方便 diff
+          # 需要拿到前一次提交，才抓得到差異檔
+          fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '20'
 
-      - name: Detect changed .txt files
-        id: changed
+      - name: Determine changed poem files
+        id: diff
+        shell: bash
         run: |
-          echo "📦 檢查是否有變更 .txt"
-          git diff --name-only HEAD~1 HEAD | grep '^raw_poems/.*\.txt$' \
-            | sed 's|raw_poems/||;s|\.txt$||' > changed.txt || true
-
-      - name: Show changed files
-        run: cat changed.txt || echo "⚠️ 沒有變更的詩作"
-
-      - name: Run convert.js on changed poems
-        run: |
-          if [ -s changed.txt ]; then
-            xargs -a changed.txt node convert.js
-          else
-            echo "⏭️ 沒有詩作變更，略過轉換"
+          # 找到比較基準（處理首次推送 / 手動觸發）
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse HEAD~1 || echo "")"
           fi
 
-      - name: Commit and push updated JSONs
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
+          if [ -n "$BASE" ]; then
+            CHANGED=$(git diff --name-only "$BASE" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
+          else
+            # 只有一個提交可比時（例如只有 HEAD）
+            CHANGED=$(git show --name-only --pretty="" ${{ github.sha }} | grep '^raw_poems/.*\.txt$' || true)
+          fi
 
-          git add data/posts/*.json data/index.json
-          git diff --cached --quiet || git commit -m "🤖 更新詩作 JSON（自動轉換）"
-          git push
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          echo "Changed files:"
+          echo "$CHANGED"
+
+      - name: Run converter
+        run: |
+          if [ -n "${{ steps.diff.outputs.changed }}" ]; then
+            echo "Converting changed files only..."
+            node convert.js ${{ steps.diff.outputs.changed }}
+          else
+            echo "No changed .txt files. Running in 'add-new-only' mode..."
+            # 不傳參數 → convert.js 只會把 index.json 沒列到的「新詩」補進去
+            node convert.js
+          fi
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update converted poems & index"
+          file_pattern: data/**
